@@ -48,6 +48,12 @@ class JupyterLabS3(Configurable):
         help="(Optional) Token if you use STS as auth method",
     )
 
+    bucket_name = Unicode(
+        default_value=environ.get("JUPYTERLAB_S3_BUCKET_NAME", ""),
+        config=True,
+        help="(Optional) Bucket name",
+    )
+
 
 def _load_jupyter_server_extension(server_app):
     """Registers the API handler to receive HTTP requests from the frontend extension.

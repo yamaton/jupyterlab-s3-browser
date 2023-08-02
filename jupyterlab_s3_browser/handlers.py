@@ -98,25 +98,37 @@ def has_aws_s3_role_access():
         return False
 
 
-def test_s3_credentials(endpoint_url, client_id, client_secret, session_token):
+def test_s3_credentials(endpoint_url, client_id, client_secret, session_token, bucket_name):
     """
     Checks if we're able to list buckets with these credentials.
     If not, it throws an exception.
     """
-    test = boto3.resource(
+    s3 = boto3.resource(
         "s3",
         aws_access_key_id=client_id,
         aws_secret_access_key=client_secret,
         endpoint_url=endpoint_url,
         aws_session_token=session_token,
     )
-    all_buckets = test.buckets.all()
-    logging.debug(
-        [
-            {"name": bucket.name + "/", "path": bucket.name + "/", "type": "directory"}
-            for bucket in all_buckets
-        ]
-    )
+
+    try:
+        all_buckets = s3.buckets.all()
+        logging.debug(
+            [
+                {"name": bucket.name + "/", "path": bucket.name + "/", "type": "directory"}
+                for bucket in all_buckets
+            ]
+        )
+    except Exception as e:
+        if not bucket_name:
+            raise
+
+        bucket = s3.Bucket(bucket_name)
+        logging.debug(
+            [
+                {"name": bucket.name + "/", "path": bucket.name + "/", "type": "directory"}
+            ]
+        )
 
 
 class AuthHandler(APIHandler):  # pylint: disable=abstract-method
@@ -148,6 +160,7 @@ class AuthHandler(APIHandler):  # pylint: disable=abstract-method
                         config.client_id,
                         config.client_secret,
                         config.session_token,
+                        config.bucket_name,
                     )
                     logging.debug("...successfully authenticated")
 
@@ -176,13 +189,15 @@ class AuthHandler(APIHandler):  # pylint: disable=abstract-method
             client_id = req["client_id"]
             client_secret = req["client_secret"]
             session_token = req["session_token"]
+            bucket_name = req["bucket_name"]
 
-            test_s3_credentials(endpoint_url, client_id, client_secret, session_token)
+            test_s3_credentials(endpoint_url, client_id, client_secret, session_token, bucket_name)
 
             self.config.endpoint_url = endpoint_url
             self.config.client_id = client_id
             self.config.client_secret = client_secret
             self.config.session_token = session_token
+            self.config.bucket_name = bucket_name
 
             self.finish(json.dumps({"success": True}))
         except Exception as err:
@@ -220,7 +235,7 @@ class S3Handler(APIHandler):
         Takes a path and returns lists of files/objects
         and directories/prefixes based on the path.
         """
-        path = path[1:]
+        path = self._from_apipath(path)
         #  logging.info("GET {}".format(path))
 
         try:
@@ -238,6 +253,18 @@ class S3Handler(APIHandler):
                         "type": "file",
                         "content": base64.encodebytes(f.read()).decode("ascii"),
                     }
+
+            # Note that self.s3fs.listdir("") fails if s3:ListAllMyBuckets
+            # permission is unavailable. So returns the manual result.
+            elif not path and self.config.bucket_name:
+                bucket = self.config.bucket_name
+                result = [
+                    {
+                        "name": bucket,
+                        "path": bucket,
+                        "type": "directory",
+                    }
+                ]
             else:
                 raw_result = list(
                     map(convertS3FStoJupyterFormat, self.s3fs.listdir(path))
@@ -261,7 +288,7 @@ class S3Handler(APIHandler):
         Takes a path and returns lists of files/objects
         and directories/prefixes based on the path.
         """
-        path = path[1:]
+        path = self._from_apipath(path)
 
         result = {}
 
@@ -334,7 +361,7 @@ class S3Handler(APIHandler):
         Takes a path and returns lists of files/objects
         and directories/prefixes based on the path.
         """
-        path = path[1:]
+        path = self._from_apipath(path)
         #  logging.info("DELETE: {}".format(path))
 
         result = {}
@@ -386,6 +413,10 @@ class S3Handler(APIHandler):
             result = {"error": 500, "message": str(e)}
 
         self.finish(json.dumps(result))
+
+    def _from_apipath(self, path):
+        """Convert Web API path to Unix path by removing prefix / in webapi path"""
+        return path[1:]
 
 
 def setup_handlers(web_app):

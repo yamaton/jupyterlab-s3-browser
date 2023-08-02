@@ -132,6 +132,12 @@ namespace Private {
             h.label({}, "(Optional) Session Token"),
             h.br(),
             h.input({ type: "password", name: "session_token" })
+          ),
+          h.br(),
+          h.p(
+            h.label({}, "(Optional) Bucket Name"),
+            h.br(),
+            h.input({ type: "text", name: "bucket_name" })
           )
         ),
         h.br(),
