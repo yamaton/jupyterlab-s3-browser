@@ -162,7 +162,7 @@ class AuthHandler(APIHandler):  # pylint: disable=abstract-method
                         config.session_token,
                         config.bucket_name,
                     )
-                    logging.debug("...successfully authenticated")
+                    self.log.debug("...successfully authenticated")
 
                     # If no exceptions were encountered during testS3Credentials,
                     # then assume we're authenticated
@@ -172,8 +172,8 @@ class AuthHandler(APIHandler):  # pylint: disable=abstract-method
                 # If an exception was encountered,
                 # assume that we're not yet authenticated
                 # or invalid credentials were provided
-                logging.debug("...failed to authenticate")
-                logging.debug(err)
+                self.log.debug("...failed to authenticate")
+                self.log.debug(err)
 
         self.finish(json.dumps({"authenticated": authenticated}))
 
@@ -201,7 +201,7 @@ class AuthHandler(APIHandler):  # pylint: disable=abstract-method
 
             self.finish(json.dumps({"success": True}))
         except Exception as err:
-            logging.info("unable to authenticate using credentials")
+            self.log.info("unable to authenticate using credentials")
             self.finish(json.dumps({"success": False, "message": str(err)}))
 
 
@@ -277,7 +277,7 @@ class S3Handler(APIHandler):
                 "message": "The requested resource could not be found.",
             }
         except Exception as e:
-            logging.error("Exception encountered during GET {}: {}".format(path, e))
+            self.log.error("Exception encountered during GET {}: {}".format(path, e))
             result = {"error": 500, "message": str(e)}
 
         self.finish(json.dumps(result))
@@ -303,7 +303,7 @@ class S3Handler(APIHandler):
                 if "/" not in source:
                     path = path + "/.keep"
 
-                #  logging.info("copying {} -> {}".format(source, path))
+                self.log.info("copying {} -> {}".format(source, path))
                 self.s3fs.cp(source, path, recursive=True)
                 # why read again?
                 with self.s3fs.open(path, "rb") as f:
@@ -315,7 +315,7 @@ class S3Handler(APIHandler):
             elif "X-Custom-S3-Move-Src" in self.request.headers:
                 source = self.request.headers["X-Custom-S3-Move-Src"]
 
-                #  logging.info("moving {} -> {}".format(source, path))
+                self.log.info("moving {} -> {}".format(source, path))
                 self.s3fs.move(source, path, recursive=True)
                 # why read again?
                 with self.s3fs.open(path, "rb") as f:
@@ -329,7 +329,7 @@ class S3Handler(APIHandler):
                 if not path[-1] == "/":
                     path = path + "/"
 
-                #  logging.info("creating new dir: {}".format(path))
+                self.log.info("creating new dir: {}".format(path))
                 self.s3fs.mkdir(path)
                 self.s3fs.touch(path + ".keep")
             elif self.request.body:
@@ -344,13 +344,13 @@ class S3Handler(APIHandler):
                     }
 
         except S3ResourceNotFoundException as e:
-            #  logging.info(e)
+            self.log.info(e)
             result = {
                 "error": 404,
                 "message": "The requested resource could not be found.",
             }
         except Exception as e:
-            logging.error(e)
+            self.log.error(e)
             result = {"error": 500, "message": str(e)}
 
         self.finish(json.dumps(result))
@@ -399,17 +399,17 @@ class S3Handler(APIHandler):
                 self.s3fs.rm(path)
 
         except S3ResourceNotFoundException as e:
-            logging.error(e)
+            self.log.error(e)
             result = {
                 "error": 404,
                 "message": "The requested resource could not be found.",
             }
         except DirectoryNotEmptyException as e:
-            #  logging.info("Attempted to delete non-empty directory")
+            self.log.info("Attempted to delete non-empty directory")
             result = {"error": 400, "error": "DIR_NOT_EMPTY"}
         except Exception as e:
-            logging.error("error while deleting")
-            logging.error(e)
+            self.log.error("error while deleting")
+            self.log.error(e)
             result = {"error": 500, "message": str(e)}
 
         self.finish(json.dumps(result))
