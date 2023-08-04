@@ -12,6 +12,9 @@ export async function copyFile(
 ): Promise<Contents.IModel> {
   // pass
   const settings = ServerConnection.makeSettings(); // can be stored as class var
+  console.info('Copying involving S3 drive');
+  console.info(`oldPath: ${oldPath}`);
+  console.info(`newPath: ${newPath}`);
   const response = await (
     await ServerConnection.makeRequest(
       URLExt.join(settings.baseUrl, "jupyterlab_s3_browser/files", newPath),
